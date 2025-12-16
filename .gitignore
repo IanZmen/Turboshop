@@ -1,0 +1,63 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.fuse_hidden*
+.Trash-*
+.nfs*
+
+# Editors/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+*.bak
+*.orig
+
+# Logs and runtime
+logs/
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# Archives and packages
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+node_modules/
+vendor/
+
+# Environment and secrets
+.env
+.env.*
+
+# Dependency caches
+.cache/
+.npm/
+.pnpm-store/
+.yarn/
+.parcel-cache/
+coverage/
+
+# Build output
+dist/
+build/
+out/
+tmp/
+temp/
+
+
+__pycache__/
