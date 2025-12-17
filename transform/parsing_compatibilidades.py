@@ -1,105 +1,125 @@
 from __future__ import annotations
 import re
-from dataclasses import dataclass
 from typing import Optional, Tuple
 
+from constants.vehicles import KNOWN_MAKES
+
 YEAR4 = re.compile(r"\b(19\d{2}|20\d{2})\b")
-# Permite 1-2 decimales y sufijos L/LTS; ignora mediciones con X/* porque se procesan aparte
 LITERS = re.compile(r"\b(\d(?:\.\d){1,2})\s*(LTS?|L)?\b", re.IGNORECASE)
-ENGINE_CODE = re.compile(r"\b([A-Z]\d[A-Z0-9]{2,5})\b")  # G4FC, D4HB, etc.
-RANGE_2DIGIT = re.compile(r"\b(\d{2})\s*[-/]\s*(\d{2})\b")  # 07-11
-RANGE_4DIGIT = re.compile(r"\b(19\d{2}|20\d{2})\s*[-/]\s*(19\d{2}|20\d{2})\b")  # 2016/2020
+
+RANGE_2DIGIT = re.compile(r"\b(\d{2})\s*[-/]\s*(\d{2})\b")
+RANGE_4DIGIT = re.compile(r"\b(19\d{2}|20\d{2})\s*[-/]\s*(19\d{2}|20\d{2})\b")
 GENERIC_RANGE = re.compile(r"\b(\d{2,4})\s*[-/]\s*(\d{2,4})\b")
-ON_PATTERN = re.compile(r"\b(\d{2}|19\d{2}|20\d{2})\s*ON\b", re.IGNORECASE)  # 97 ON / 1997 ON
+ON_PATTERN = re.compile(r"\b(\d{2}|19\d{2}|20\d{2})\s*ON\b", re.IGNORECASE)
+
 MEASURE_BLOCK = re.compile(r"\d+(?:[.,]\d+)?(?:\s*[xX\*\u00D7]\s*\d+(?:[.,]\d+)?)+")
 DECIMALS = re.compile(r"\b\d+\.\d+\b")
 
-def _to_year_4(y: str) -> Optional[int]:
-    # convierte "07" -> 2007 (heurística) y "97" -> 1997
-    y = y.strip()
-    if len(y) == 4:
-        return int(y)
-    if len(y) == 2:
-        yy = int(y)
-        return 2000 + yy if yy <= 30 else 1900 + yy
+STOP_WORDS = {
+    "MOBIS","EXEDY","NPR","RIK","LUK","GENUIN","GENUINE","KOREA","CHINA","STD","OEM","ORIGINAL"
+}
+
+TOKEN = re.compile(r"\b[A-Z0-9]{2,12}\b")
+HAS_LETTER = re.compile(r"[A-Z]")
+HAS_DIGIT = re.compile(r"\d")
+
+
+def _to_year_4(year_token: str) -> Optional[int]:
+    year_token = year_token.strip()
+    if len(year_token) == 4:
+        return int(year_token)
+    if len(year_token) == 2:
+        two_digit_year = int(year_token)
+        return 2000 + two_digit_year if two_digit_year <= 30 else 1900 + two_digit_year
     return None
 
+
 def extraer_anios(texto: str) -> Tuple[Optional[int], Optional[int]]:
-    t = texto.upper()
-    # Limpia motores (decimales) y medidas (X/*) para que no interfieran al detectar años
-    t = MEASURE_BLOCK.sub(" ", t)
-    t = DECIMALS.sub(" ", t)
+    normalized_text = texto.upper()
+    normalized_text = MEASURE_BLOCK.sub(" ", normalized_text)
+    normalized_text = DECIMALS.sub(" ", normalized_text)
 
-    m = RANGE_4DIGIT.search(t)
-    if m:
-        return int(m.group(1)), int(m.group(2))
+    range_match = RANGE_4DIGIT.search(normalized_text)
+    if range_match:
+        return int(range_match.group(1)), int(range_match.group(2))
 
-    m = RANGE_2DIGIT.search(t)
-    if m:
-        y1 = _to_year_4(m.group(1))
-        y2 = _to_year_4(m.group(2))
-        return y1, y2
+    range_match = RANGE_2DIGIT.search(normalized_text)
+    if range_match:
+        return _to_year_4(range_match.group(1)), _to_year_4(range_match.group(2))
 
-    m = GENERIC_RANGE.search(t)
-    if m:
-        y1 = _to_year_4(m.group(1))
-        y2 = _to_year_4(m.group(2))
-        return y1, y2
+    range_match = GENERIC_RANGE.search(normalized_text)
+    if range_match:
+        return _to_year_4(range_match.group(1)), _to_year_4(range_match.group(2))
 
-    m = ON_PATTERN.search(t)
-    if m:
-        y = _to_year_4(m.group(1))
-        return y, None  # "desde y en adelante"
+    on_match = ON_PATTERN.search(normalized_text)
+    if on_match:
+        return _to_year_4(on_match.group(1)), None
 
-    m = YEAR4.search(t)
-    if m:
-        y = int(m.group(1))
-        return y, y
-
-    # Año suelto de 2 dígitos
-    m = re.search(r"\b(\d{2})\b", t)
-    if m:
-        y = _to_year_4(m.group(1))
-        return y, y
+    year_match = YEAR4.search(normalized_text)
+    if year_match:
+        year_value = int(year_match.group(1))
+        return year_value, year_value
 
     return None, None
 
+
 def extraer_motor_litros(texto: str) -> Optional[float]:
-    m = LITERS.search(texto)
-    return float(m.group(1)) if m else None
+    liters_match = LITERS.search(texto)
+    if not liters_match:
+        return None
+    liters_value = float(liters_match.group(1))
+    if liters_value < 0.8 or liters_value > 8.0:
+        return None
+    return liters_value
+
 
 def extraer_codigo_motor(texto: str) -> Optional[str]:
-    # filtra cosas demasiado cortas, pero deja códigos tipo G4FC / D4HB
-    m = ENGINE_CODE.search(texto.upper())
-    return m.group(1) if m else None
+    normalized_text = texto.upper()
+    candidates = []
+    for token in TOKEN.findall(normalized_text):
+        if token in KNOWN_MAKES or token in STOP_WORDS:
+            continue
+        if not HAS_LETTER.search(token) or not HAS_DIGIT.search(token):
+            continue
+        if token.isdigit():
+            continue
+        candidates.append(token)
 
-def extraer_marca_modelo(texto: str) -> tuple[Optional[str], Optional[str]]:
-    # Heurística simple:
-    # primer token = marca
-    # resto (hasta encontrar motor/años) = modelo "crudo"
-    tokens = [t for t in texto.strip().split() if t]
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda token: (-(len(token)), -sum(ch.isdigit() for ch in token)))
+    return candidates[0]
+
+
+def extraer_marca_modelo_flexible(texto: str) -> tuple[Optional[str], Optional[str]]:
+    tokens = [token for token in texto.strip().split() if token]
     if not tokens:
         return None, None
 
-    marca = tokens[0].upper()
+    first_token = tokens[0].upper()
+    marca = first_token if first_token in KNOWN_MAKES else None
+    model_start_index = 1 if marca else 0
 
-    # modelo: toma tokens siguientes hasta topar con motor litros / año / código motor
     modelo_tokens = []
-    for tok in tokens[1:]:
-        upper_tok = tok.upper()
-        # ignora ceros sueltos que contaminan el modelo
-        if upper_tok in {"0", "00"}:
+    for token in tokens[model_start_index:]:
+        token_upper = token.upper()
+        if YEAR4.fullmatch(token_upper) or LITERS.fullmatch(token) or RANGE_2DIGIT.fullmatch(token) or RANGE_4DIGIT.fullmatch(token):
+            break
+        if token_upper == "0":
             continue
-
-        if YEAR4.fullmatch(upper_tok) or LITERS.fullmatch(upper_tok) or ENGINE_CODE.fullmatch(upper_tok):
-            break
-        # también corta si parece rango tipo 07-11
-        if RANGE_2DIGIT.fullmatch(upper_tok) or RANGE_4DIGIT.fullmatch(upper_tok) or GENERIC_RANGE.fullmatch(upper_tok):
-            break
-        # corta si parece motor decimal o medida con X/*
-        if DECIMALS.fullmatch(upper_tok) or re.search(r"\d\s*[X\*\u00D7]\s*\d", upper_tok):
-            break
-        modelo_tokens.append(tok)
+        modelo_tokens.append(token)
 
     modelo = " ".join(modelo_tokens).strip() if modelo_tokens else None
     return marca, (modelo.upper() if modelo else None)
+
+
+def split_aplicaciones_seguro(aplicaciones: str) -> list[str]:
+    if not aplicaciones:
+        return []
+    aplicaciones_texto = aplicaciones.strip()
+    partes_aplicaciones = re.split(r"\s-\s", aplicaciones_texto)
+    if len(partes_aplicaciones) > 1:
+        return [part.strip() for part in partes_aplicaciones if part.strip()]
+    partes_aplicaciones = re.split(r",(?![^()]*\))", aplicaciones_texto)
+    return [part.strip() for part in partes_aplicaciones if part.strip()]

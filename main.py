@@ -4,46 +4,87 @@ from pathlib import Path
 import pandas as pd
 
 from config import ETLConfig
-from utils.logging import get_logger
-from extract.excel_reader import read_all_sheets
+from constants.formats import (
+    FORMAT_APLICACIONES,
+    FORMAT_COMPLETO,
+    FORMAT_NOMBRE_EMBEBIDO,
+)
 from detect.format_detector import detectar_formato
-from transform.formats.formato_completo import procesar_formato_completo_a_tabla_unica
+from extract.excel_reader import read_all_sheets
 from load.writer import write_output
+from transform.formats.formato_aplicaciones import procesar_formato_aplicaciones
+from transform.formats.formato_completo import procesar_formato_completo_a_tabla_unica
+from transform.formats.formato_nombre_embebido import (
+    procesar_formato_nombre_embebido_a_tabla_unica,
+)
+from utils.dataframe import order_columns_by_prefix
+from utils.logging import get_logger
 
 logger = get_logger()
 
-def run(cfg: ETLConfig) -> Path:
-    sheets = read_all_sheets(cfg.input_path)
-    outputs: list[pd.DataFrame] = []
+PROCESSORS = {
+    FORMAT_COMPLETO: procesar_formato_completo_a_tabla_unica,
+    FORMAT_APLICACIONES: procesar_formato_aplicaciones,
+    FORMAT_NOMBRE_EMBEBIDO: procesar_formato_nombre_embebido_a_tabla_unica,
+}
 
-    for sheet in sheets:
-        match = detectar_formato(sheet.df)
-        if not match:
-            logger.info(f"Hoja '{sheet.sheet_name}' ignorada por ahora. Columnas={list(sheet.df.columns)}")
+def run(config: ETLConfig) -> Path:
+    sheet_data_list = read_all_sheets(config.input_path)
+    processed_outputs: list[pd.DataFrame] = []
+
+    for sheet_data in sheet_data_list:
+        detected_format = detectar_formato(sheet_data.data_frame)
+
+        if not detected_format:
+            logger.info(
+                f"Hoja '{sheet_data.sheet_name}' ignorada. "
+                f"Columnas detectadas={list(sheet_data.data_frame.columns)}"
+            )
             continue
 
-        if match.format_key == "formato_completo":
-            logger.info(f"Hoja '{sheet.sheet_name}' -> {match.format_key}")
-            outputs.append(procesar_formato_completo_a_tabla_unica(sheet.df, sheet.sheet_name))
+        processor = PROCESSORS.get(detected_format.format_key)
+        if not processor:
+            logger.warning(
+                f"Formato detectado pero sin processor: {detected_format.format_key} "
+                f"(Hoja={sheet_data.sheet_name})"
+            )
+            continue
 
-    if not outputs:
-        raise RuntimeError("No se generó salida.")
+        logger.info(
+            f"Procesando hoja '{sheet_data.sheet_name}' "
+            f"con formato='{detected_format.format_key}' ({detected_format.reason})"
+        )
 
-    final_df = pd.concat(outputs, ignore_index=True)
+        processed_data_frame = processor(sheet_data.data_frame, sheet_data.sheet_name)
+        processed_outputs.append(processed_data_frame)
 
-    # ejemplo: quitar duplicados exactos
-    final_df = final_df.drop_duplicates()
+    if not processed_outputs:
+        raise RuntimeError("No se generó ninguna salida procesable.")
 
-    # aquí sí: un solo archivo, el formato lo decide cfg
-    out_path = write_output(final_df, cfg.output_dir, fmt=cfg.output_format)
-    logger.info(f"Salida final generada: {out_path}")
-    return out_path
+    unified_data_frame = pd.concat(processed_outputs, ignore_index=True)
+
+    # quitar duplicados exactos (misma compatibilidad + mismo repuesto)
+    unified_data_frame = unified_data_frame.drop_duplicates()
+
+    unified_data_frame = order_columns_by_prefix(unified_data_frame, prefixes=("repuesto_", "compatibilidad_"))
+
+    output_path = write_output(
+        unified_data_frame,
+        config.output_dir,
+        output_format=config.output_format
+    )
+
+    logger.info(f"Salida final generada: {output_path}")
+    logger.info(f"Filas totales: {len(unified_data_frame)}")
+
+    return output_path
+
 
 if __name__ == "__main__":
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    cfg = ETLConfig(
-        input_path=Path(os.path.join(base_dir, "ArchivosIniciales", "datos_tarea_reclutamiento.xlsx")),
-        output_dir=Path(os.path.join(base_dir, "out")),
+    base_directory = os.path.dirname(os.path.abspath(__file__))
+    config = ETLConfig(
+        input_path=Path(os.path.join(base_directory, "ArchivosIniciales", "datos_tarea_reclutamiento.xlsx")),
+        output_dir=Path(os.path.join(base_directory, "out")),
         output_format="xlsx",
     )
-    run(cfg)
+    run(config)

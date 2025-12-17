@@ -6,14 +6,13 @@ import pandas as pd
 @dataclass(frozen=True)
 class SheetData:
     sheet_name: str
-    df: pd.DataFrame
+    data_frame: pd.DataFrame
 
 def read_all_sheets(path: Path) -> list[SheetData]:
-    # Lee todas las hojas como dict: {sheet_name: df}
     sheets = pd.read_excel(path, sheet_name=None, dtype=str)  # todo como str para no perder info
-    out: list[SheetData] = []
-    for sheet_name, df in sheets.items():
-        df = df.copy()
-        df.columns = [str(c).strip() for c in df.columns]
-        out.append(SheetData(sheet_name=sheet_name, df=df))
-    return out
+    sheet_data_list: list[SheetData] = []
+    for sheet_name, data_frame in sheets.items():
+        data_frame = data_frame.copy()
+        data_frame.columns = [str(column_name).strip() for column_name in data_frame.columns]
+        sheet_data_list.append(SheetData(sheet_name=sheet_name, data_frame=data_frame))
+    return sheet_data_list

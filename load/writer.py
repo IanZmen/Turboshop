@@ -2,27 +2,29 @@ from __future__ import annotations
 from pathlib import Path
 import pandas as pd
 
-def write_output(df: pd.DataFrame, output_dir: Path, fmt: str = "csv") -> Path:
+def write_output(
+    data_frame: pd.DataFrame, output_dir: Path, output_format: str = "csv"
+) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    if fmt == "csv":
-        out_path = output_dir / "catalog_unificado.csv"
-        df.to_csv(out_path, index=False)
-        return out_path
+    if output_format == "csv":
+        output_path = output_dir / "catalog_unificado.csv"
+        data_frame.to_csv(output_path, index=False)
+        return output_path
 
-    if fmt == "parquet":
-        out_path = output_dir / "catalog_unificado.parquet"
-        df.to_parquet(out_path, index=False)
-        return out_path
+    if output_format == "parquet":
+        output_path = output_dir / "catalog_unificado.parquet"
+        data_frame.to_parquet(output_path, index=False)
+        return output_path
 
-    if fmt == "json":
-        out_path = output_dir / "catalog_unificado.json"
-        df.to_json(out_path, orient="records", force_ascii=False)
-        return out_path
+    if output_format == "json":
+        output_path = output_dir / "catalog_unificado.json"
+        data_frame.to_json(output_path, orient="records", force_ascii=False)
+        return output_path
 
-    if fmt in ("xlsx", "excel"):
-        out_path = output_dir / "catalog_unificado.xlsx"
-        df.to_excel(out_path, index=False)
-        return out_path
+    if output_format in ("xlsx", "excel"):
+        output_path = output_dir / "catalog_unificado.xlsx"
+        data_frame.to_excel(output_path, index=False)
+        return output_path
 
-    raise ValueError(f"Formato no soportado: {fmt}")
+    raise ValueError(f"Formato no soportado: {output_format}")
