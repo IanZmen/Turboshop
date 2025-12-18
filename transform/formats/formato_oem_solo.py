@@ -173,7 +173,8 @@ def procesar_formato_oem_solo(
                     elif enrichment.get("link_fuente"):
                         final_row["paginas_de_informacion"] = enrichment.get("link_fuente")
 
-                final_row["uso_de_OPEN_AI"] = bool(use_llm and enrichment)
+                # Verdadero solo si la fuente es OpenAI/LLM (no para scraping)
+                final_row["uso_de_OPEN_AI"] = enrichment.get("fuente") == "openai" if enrichment else False
 
                 rows.append(final_row)
 

@@ -197,6 +197,7 @@ def buscar_oem_en_internet(oem: str) -> Optional[Dict[str, Any]]:
         "dimensiones_unidad": _clean_str(parsed_data.get("dimensiones_unidad")),
         "links_fuente": links,
         "link_fuente": links[0] if links else None,
+        "fuente": "openai",
     }
 
     # si no encontró nada útil

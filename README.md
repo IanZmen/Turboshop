@@ -49,5 +49,5 @@ Orden definida en `constants/output.py`: `repuesto_sku`, `repuesto_oem`, `provee
 
 ## TODO'S
 
-- No alcancé a separar en filas las compatibilidades del provedor 3
+- No alcancé a separar en filas las compatibilidades del provedor 3 al hacer scrapping
 - Quedan filas sin información porque no logró ser encontrada, quizás se podría probar con otros modelos de openai u otros provedores, también se pueden buscar a amano ya que son pocos o quizás al ir implementando más páginas para scrapping se encuentran.
