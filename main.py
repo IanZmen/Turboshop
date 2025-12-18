@@ -8,7 +8,9 @@ from constants.formats import (
     FORMAT_APLICACIONES,
     FORMAT_COMPLETO,
     FORMAT_NOMBRE_EMBEBIDO,
+    FORMAT_OEM_SOLO,
 )
+from constants.output import OUTPUT_COLUMN_ORDER
 from detect.format_detector import detectar_formato
 from extract.excel_reader import read_all_sheets
 from load.writer import write_output
@@ -17,7 +19,8 @@ from transform.formats.formato_completo import procesar_formato_completo_a_tabla
 from transform.formats.formato_nombre_embebido import (
     procesar_formato_nombre_embebido_a_tabla_unica,
 )
-from utils.dataframe import order_columns_by_prefix
+from transform.formats.formato_oem_solo import procesar_formato_oem_solo
+from utils.dataframe import reorder_columns
 from utils.logging import get_logger
 
 logger = get_logger()
@@ -40,6 +43,19 @@ def run(config: ETLConfig) -> Path:
                 f"Hoja '{sheet_data.sheet_name}' ignorada. "
                 f"Columnas detectadas={list(sheet_data.data_frame.columns)}"
             )
+            continue
+
+        if detected_format.format_key == FORMAT_OEM_SOLO:
+            logger.info(
+                f"Procesando hoja '{sheet_data.sheet_name}' "
+                f"con formato='{detected_format.format_key}' ({detected_format.reason})"
+            )
+            processed_data_frame = procesar_formato_oem_solo(
+                sheet_data.data_frame,
+                sheet_data.sheet_name,
+                use_llm=config.use_llm,
+            )
+            processed_outputs.append(processed_data_frame)
             continue
 
         processor = PROCESSORS.get(detected_format.format_key)
@@ -66,7 +82,10 @@ def run(config: ETLConfig) -> Path:
     # quitar duplicados exactos (misma compatibilidad + mismo repuesto)
     unified_data_frame = unified_data_frame.drop_duplicates()
 
-    unified_data_frame = order_columns_by_prefix(unified_data_frame, prefixes=("repuesto_", "compatibilidad_"))
+    # Orden final coherente de columnas
+    unified_data_frame = reorder_columns(
+        unified_data_frame, priority_columns=OUTPUT_COLUMN_ORDER
+    )
 
     output_path = write_output(
         unified_data_frame,
@@ -86,5 +105,6 @@ if __name__ == "__main__":
         input_path=Path(os.path.join(base_directory, "ArchivosIniciales", "datos_tarea_reclutamiento.xlsx")),
         output_dir=Path(os.path.join(base_directory, "out")),
         output_format="xlsx",
+        use_llm=True,
     )
     run(config)

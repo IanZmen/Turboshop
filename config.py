@@ -6,3 +6,4 @@ class ETLConfig:
     input_path: Path
     output_dir: Path
     output_format: str
+    use_llm: bool = False

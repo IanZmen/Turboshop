@@ -1,6 +1,13 @@
 pandas
 openpyxl
 pyarrow
+
 requests
 beautifulsoup4
 lxml
+
+selenium
+webdriver-manager
+
+python-dotenv
+openai

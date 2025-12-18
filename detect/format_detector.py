@@ -7,12 +7,14 @@ from constants.formats import (
     FORMAT_APLICACIONES,
     FORMAT_COMPLETO,
     FORMAT_NOMBRE_EMBEBIDO,
+    FORMAT_OEM_SOLO,
 )
 
 FORMAT_COLUMN_RULES = {
     FORMAT_COMPLETO: {"sku", "oem", "compatibilidades", "repuesto"},
     FORMAT_APLICACIONES: {"codigo", "descripcion", "aplicaciones"},
     FORMAT_NOMBRE_EMBEBIDO: {"sku", "repuesto", "codigo"},
+    FORMAT_OEM_SOLO: {"oem"},
 }
 
 
@@ -43,6 +45,12 @@ def detectar_formato(data_frame: pd.DataFrame) -> Optional[FormatMatch]:
         return FormatMatch(
             format_key=FORMAT_NOMBRE_EMBEBIDO,
             reason="Columnas SKU+REPUESTO+CODIGO (compatibilidad en nombre)"
+        )
+
+    if normalized_columns == FORMAT_COLUMN_RULES[FORMAT_OEM_SOLO]:
+        return FormatMatch(
+            format_key=FORMAT_OEM_SOLO,
+            reason="Solo columna OEM"
         )
 
     return None
